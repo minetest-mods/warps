@@ -11,6 +11,8 @@
 priv: warp_admin - set/change/delete warps
 priv: warp_user  - list, and use warps
 
+warps are stored in the world folder file "warps.txt".
+
 ========
 
 Copyright (C) 2015 - Auke Kok <sofar@foo-projects.org>
