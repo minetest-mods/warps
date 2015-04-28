@@ -13,6 +13,12 @@ priv: warp_user  - list, and use warps
 
 warps are stored in the world folder file "warps.txt".
 
+A warpstone can be given or found in the creative inventory (item
+id: warps:warpstone). This warpstone can be placed on the ground
+and be programmed to warp players who punch it to a certain warp
+location (one of the warps in /listwarps). Right-clicking the item
+as a warp_admin user will allow you to program the warpstone.
+
 ========
 
 Copyright (C) 2015 - Auke Kok <sofar@foo-projects.org>

@@ -34,7 +34,7 @@ local load = function ()
 		return
 	end
 	while true do
-		line = fh:read()
+		local line = fh:read()
 		if line == nil then
 			break
 		end
@@ -133,6 +133,59 @@ minetest.register_chatcommand("warp", {
 		end
 		return false, "Unknown warp \"" .. param .. "\""
 	end
+})
+
+minetest.register_node("warps:warpstone", {
+	visual = "mesh",
+	mesh = "warps_warpstone.obj",
+	description = "A Warp Stone",
+	tiles = { "warps_warpstone.png" },
+	drawtype = "mesh",
+	sunlight_propagates = true,
+	walkable = false,
+	paramtype = "light",
+	groups = { choppy=3 },
+	selection_box = {
+		type = "fixed",
+		fixed = {-0.25, -0.5, -0.25,  0.25, 0.5, 0.25}
+	},
+	on_construct = function(pos)
+		local meta = minetest.get_meta(pos)
+		meta:set_string("formspec",
+			"field[destination;Warp Destination;]")
+		meta:set_string("Infotext", "Uninitialized Warp Stone")
+	end,
+	on_receive_fields = function(pos, formname, fields, sender)
+		if not minetest.check_player_privs(sender:get_player_name(), {warp_admin = true}) then
+			minetest.chat_send_player(sender:get_player_name(), "You do not have permission to modify warp stones")
+			return false
+		end
+		local meta = minetest.get_meta(pos)
+		meta:set_string("formspec",
+			"field[destination;Warp Destination;" .. fields.destination .. "]")
+		meta:set_string("warps_destination", fields.destination)
+		minetest.log("action", sender:get_player_name() .. " changed warp stone to \"" .. fields.destination .. "\"")
+	end,
+	on_punch = function(pos, node, puncher, pointed_thingo)
+		local meta = minetest.get_meta(pos)
+		local destination = meta:get_string("warps_destination")
+		if destination == "" then
+			return false, "Warp stone not initialized"
+		end
+		for i = 1,table.getn(warps) do
+			if warps[i].name == destination then
+				puncher:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
+				puncher:set_look_yaw(warps[i].yaw)
+				puncher:set_look_pitch(warps[i].pitch)
+				minetest.log("action", puncher:get_player_name() .. " used a warp stone to \"" .. destination .. "\"")
+				minetest.chat_send_player(puncher:get_player_name(), "warped to \"" .. destination .. "\"")
+				return true, "Warped \"" .. puncher:get_player_name() .. "\" to \"" .. destination .. "\""
+			end
+		end
+		minetest.chat_send_player(puncher:get_player_name(), "Unknown warp location for this warp stone, cannot warp!")
+		return false
+
+	end,
 })
 
 -- load existing warps
