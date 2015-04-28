@@ -145,6 +145,7 @@ minetest.register_node("warps:warpstone", {
 	walkable = false,
 	paramtype = "light",
 	groups = { choppy=3 },
+	light_source = 5,
 	selection_box = {
 		type = "fixed",
 		fixed = {-0.25, -0.5, -0.25,  0.25, 0.5, 0.25}
@@ -160,6 +161,9 @@ minetest.register_node("warps:warpstone", {
 			minetest.chat_send_player(sender:get_player_name(), "You do not have permission to modify warp stones")
 			return false
 		end
+		if not fields.destination then
+			return
+		end
 		local meta = minetest.get_meta(pos)
 		meta:set_string("formspec",
 			"field[destination;Warp Destination;" .. fields.destination .. "]")
@@ -167,10 +171,16 @@ minetest.register_node("warps:warpstone", {
 		minetest.log("action", sender:get_player_name() .. " changed warp stone to \"" .. fields.destination .. "\"")
 	end,
 	on_punch = function(pos, node, puncher, pointed_thingo)
+		if puncher:get_player_control().sneak and minetest.check_player_privs(puncher:get_player_name(), {warp_admin = true}) then
+			minetest.remove_node(pos)
+			minetest.chat_send_player(puncher:get_player_name(), "Warp stone removed!")
+			return
+		end
 		local meta = minetest.get_meta(pos)
 		local destination = meta:get_string("warps_destination")
 		if destination == "" then
-			return false, "Warp stone not initialized"
+			minetest.chat_send_player(puncher:get_player_name(), "Unknown warp location for this warp stone, cannot warp!")
+			return false
 		end
 		for i = 1,table.getn(warps) do
 			if warps[i].name == destination then
