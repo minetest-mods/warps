@@ -20,6 +20,12 @@ location (one of the warps in /listwarps). Right-clicking the item
 as a warp_admin user will allow you to program the warpstone. The
 warpstone can be removed by shift-punching the warp stone.
 
+All warps are delayed by ~5 seconds. You have to stand still for
+that duration, otherwise the warp will be cancelled. This may avoid
+warp spamming and warping out of combat a bit. There's a bit
+of variation in time due to the timer resolution in minetest
+being rather large.
+
 ========
 
 Copyright (C) 2015 - Auke Kok <sofar@foo-projects.org>

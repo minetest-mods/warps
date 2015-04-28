@@ -11,6 +11,65 @@ of the license, or (at your option) any later version.
 --]]
 
 warps = {}
+warps_queue = {}
+queue_state = 0
+local warps_freeze = 5
+-- t = time in usec
+-- p = player obj
+-- w = warp name
+
+local warp = function(player, dest)
+	for i = 1,table.getn(warps) do
+		if warps[i].name == dest then
+			player:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
+			player:set_look_yaw(warps[i].yaw)
+			player:set_look_pitch(warps[i].pitch)
+			minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
+			minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
+			return
+		end
+	end
+	minetest.chat_send_player(player:get_player_name(), "Unknown warp \"" .. dest .. "\"")
+end
+
+do_warp_queue = function()
+	if table.getn(warps_queue) == 0 then
+		queue_state = 0
+		return
+	end
+	local t = minetest.get_us_time()
+	for i = table.getn(warps_queue),1,-1 do
+		local e = warps_queue[i]
+		if e.p:getpos().x == e.pos.x and e.p:getpos().y == e.pos.y and e.p:getpos().z == e.pos.z then
+			if t > e.t then
+				warp(e.p, e.w)
+				table.remove(warps_queue, i)
+			end
+		else
+			minetest.chat_send_player(e.p:get_player_name(), "You have to stand still for " .. warps_freeze .. " seconds!")
+			table.remove(warps_queue, i)
+		end
+	end
+	if table.getn(warps_queue) == 0 then
+		queue_state = 0
+		return
+	end
+	minetest.after(1, do_warp_queue)
+end
+
+local warp_queue_add = function(player, dest)
+	table.insert(warps_queue, {
+		t = minetest.get_us_time() + ( warps_freeze * 1000000 ),
+		pos = player:getpos(),
+		p = player,
+		w = dest
+	})
+	minetest.chat_send_player(player:get_player_name(), "Don't move for " .. warps_freeze .. " seconds!")
+	if queue_state == 0 then
+		queue_state = 1
+		minetest.after(1, do_warp_queue)
+	end
+end
 
 local worldpath = minetest.get_worldpath()
 
@@ -82,8 +141,8 @@ minetest.register_chatcommand("setwarp", {
 		local pos = player:getpos()
 		table.insert(warps, { name = param, x = pos.x, y = pos.y, z = pos.z, yaw = player:get_look_yaw(), pitch = player:get_look_pitch() })
 		save()
-		minetest.log("action", "\"" .. name .. "\" " .. h .. " warp \"" .. param .. "\": " .. pos.x .. ", " .. pos.y .. ", " .. pos.z)
-		return true, "\"" .. name .. "\" " .. h .. " warp \"" .. param .. "\""
+		minetest.log("action", name .. " " .. h .. " warp \"" .. param .. "\": " .. pos.x .. ", " .. pos.y .. ", " .. pos.z)
+		return true, h .. " warp \"" .. param .. "\""
 	end,
 })
 
@@ -95,7 +154,7 @@ minetest.register_chatcommand("delwarp", {
 		for i = 1,table.getn(warps) do
 			if warps[i].name == param then
 				table.remove(warps, i)
-				minetest.log("action", "\"" .. name .. "\" removed warp \"" .. param .. "\"")
+				minetest.log("action", name .. " removed warp \"" .. param .. "\"")
 				return true, "Removed warp \"" .. param .. "\""
 			end
 		end
@@ -121,17 +180,8 @@ minetest.register_chatcommand("warp", {
 	description = "Warp to a warp location",
 	privs = { warp_user = true },
 	func = function(name, param)
-		for i = 1,table.getn(warps) do
-			if warps[i].name == param then
-				local player = minetest.get_player_by_name(name)
-				player:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
-				player:set_look_yaw(warps[i].yaw)
-				player:set_look_pitch(warps[i].pitch)
-				minetest.log("action", "\"" .. name .. "\" warped \"" .. name .. "\" to \"" .. param .. "\" at " .. warps[i].x .. ", " .. warps[i].y .. ", " .. warps[i].z)
-				return true, "Warped \"" .. name .. "\" to \"" .. param .. "\""
-			end
-		end
-		return false, "Unknown warp \"" .. param .. "\""
+		local player = minetest.get_player_by_name(name)
+		warp_queue_add(player, param)
 	end
 })
 
@@ -154,7 +204,7 @@ minetest.register_node("warps:warpstone", {
 		local meta = minetest.get_meta(pos)
 		meta:set_string("formspec",
 			"field[destination;Warp Destination;]")
-		meta:set_string("Infotext", "Uninitialized Warp Stone")
+		meta:set_string("infotext", "Uninitialized Warp Stone")
 	end,
 	on_receive_fields = function(pos, formname, fields, sender)
 		if not minetest.check_player_privs(sender:get_player_name(), {warp_admin = true}) then
@@ -167,6 +217,7 @@ minetest.register_node("warps:warpstone", {
 		local meta = minetest.get_meta(pos)
 		meta:set_string("formspec",
 			"field[destination;Warp Destination;" .. fields.destination .. "]")
+		meta:set_string("infotext", "Warp stone to " .. fields.destination)
 		meta:set_string("warps_destination", fields.destination)
 		minetest.log("action", sender:get_player_name() .. " changed warp stone to \"" .. fields.destination .. "\"")
 	end,
@@ -182,19 +233,7 @@ minetest.register_node("warps:warpstone", {
 			minetest.chat_send_player(puncher:get_player_name(), "Unknown warp location for this warp stone, cannot warp!")
 			return false
 		end
-		for i = 1,table.getn(warps) do
-			if warps[i].name == destination then
-				puncher:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
-				puncher:set_look_yaw(warps[i].yaw)
-				puncher:set_look_pitch(warps[i].pitch)
-				minetest.log("action", puncher:get_player_name() .. " used a warp stone to \"" .. destination .. "\"")
-				minetest.chat_send_player(puncher:get_player_name(), "warped to \"" .. destination .. "\"")
-				return true, "Warped \"" .. puncher:get_player_name() .. "\" to \"" .. destination .. "\""
-			end
-		end
-		minetest.chat_send_player(puncher:get_player_name(), "Unknown warp location for this warp stone, cannot warp!")
-		return false
-
+		warp_queue_add(puncher, destination)
 	end,
 })
 
