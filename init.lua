@@ -26,6 +26,9 @@ local warp = function(player, dest)
 			player:set_look_pitch(warps[i].pitch)
 			minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
 			minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
+			minetest.sound_play("warps_plop", {
+				pos = {x = warps[i].x, y = warps[i].y, z = warps[i].z},
+			})
 			return
 		end
 	end
@@ -46,6 +49,7 @@ do_warp_queue = function()
 				table.remove(warps_queue, i)
 			end
 		else
+			minetest.sound_stop(e.sh)
 			minetest.chat_send_player(e.p:get_player_name(), "You have to stand still for " .. warps_freeze .. " seconds!")
 			table.remove(warps_queue, i)
 		end
@@ -62,7 +66,8 @@ local warp_queue_add = function(player, dest)
 		t = minetest.get_us_time() + ( warps_freeze * 1000000 ),
 		pos = player:getpos(),
 		p = player,
-		w = dest
+		w = dest,
+		sh = minetest.sound_play("warps_woosh", { pos = player:getpos() })
 	})
 	minetest.chat_send_player(player:get_player_name(), "Don't move for " .. warps_freeze .. " seconds!")
 	if queue_state == 0 then
@@ -195,7 +200,7 @@ minetest.register_node("warps:warpstone", {
 	walkable = false,
 	paramtype = "light",
 	groups = { choppy=3 },
-	light_source = 5,
+	light_source = 8,
 	selection_box = {
 		type = "fixed",
 		fixed = {-0.25, -0.5, -0.25,  0.25, 0.5, 0.25}
