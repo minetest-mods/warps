@@ -22,8 +22,11 @@ local warp = function(player, dest)
 	for i = 1,table.getn(warps) do
 		if warps[i].name == dest then
 			player:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
-			player:set_look_yaw(warps[i].yaw)
-			player:set_look_pitch(warps[i].pitch)
+			-- MT Core FIXME
+			-- get functions don't output proper values for set!
+			-- https://github.com/minetest/minetest/issues/2658
+			player:set_look_yaw(warps[i].yaw - (math.pi/2))
+			player:set_look_pitch(0 - warps[i].pitch)
 			minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
 			minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
 			minetest.sound_play("warps_plop", {
