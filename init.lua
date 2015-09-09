@@ -139,6 +139,7 @@ minetest.register_chatcommand("setwarp", {
 	description = "Set a warp location to the players location",
 	privs = { warp_admin = true },
 	func = function(name, param)
+		param = param:gsub("%W", "")
 		local h = "created"
 		for i = 1,table.getn(warps) do
 			if warps[i].name == param then
