@@ -192,7 +192,11 @@ minetest.register_chatcommand("warp", {
 	privs = { warp_user = true },
 	func = function(name, param)
 		local player = minetest.get_player_by_name(name)
-		warp_queue_add(player, param)
+		if not minetest.check_player_privs(player, {warp_admin = true}) then
+			warp_queue_add(player, param)
+		else
+			warp(player, param)
+		end
 	end
 })
 
