@@ -18,24 +18,31 @@ local warps_freeze = 5
 -- p = player obj
 -- w = warp name
 
-local warp = function(player, dest)
+local function lookup_warp(name)
 	for i = 1,table.getn(warps) do
-		if warps[i].name == dest then
-			player:setpos({x = warps[i].x, y = warps[i].y, z = warps[i].z})
-			-- MT Core FIXME
-			-- get functions don't output proper values for set!
-			-- https://github.com/minetest/minetest/issues/2658
-			player:set_look_yaw(warps[i].yaw - (math.pi/2))
-			player:set_look_pitch(0 - warps[i].pitch)
-			minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
-			minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
-			minetest.sound_play("warps_plop", {
-				pos = {x = warps[i].x, y = warps[i].y, z = warps[i].z},
-			})
-			return
+		if warps[i].name == name then
+			return warps[i]
 		end
 	end
-	minetest.chat_send_player(player:get_player_name(), "Unknown warp \"" .. dest .. "\"")
+end
+
+local warp = function(player, dest)
+	local warp = lookup_warp(dest)
+	if not warp then
+		minetest.chat_send_player(player:get_player_name(), "Unknown warp \"" .. dest .. "\"")
+		return
+	end
+
+	local pos = {x = warp.x, y = warp.y, z = warp.z}
+	player:setpos(pos)
+	-- MT Core FIXME
+	-- get functions don't output proper values for set!
+	-- https://github.com/minetest/minetest/issues/2658
+	player:set_look_yaw(warp.yaw - (math.pi/2))
+	player:set_look_pitch(0 - warp.pitch)
+	minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
+	minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
+	minetest.sound_play("warps_plop", {pos = pos})
 end
 
 do_warp_queue = function()
@@ -78,6 +85,13 @@ local warp_queue_add = function(player, dest)
 	if queue_state == 0 then
 		queue_state = 1
 		minetest.after(1, do_warp_queue)
+	end
+	-- attempt to emerge the target area before the player gets there
+	local warp = lookup_warp(dest)
+	local pos = {x = warp.x, y = warp.y, z = warp.z}
+	minetest.get_voxel_manip():read_from_map(pos, pos)
+	if not minetest.get_node_or_nil(pos) then
+		minetest.emerge_area(vector.subtract(pos, 80), vector.add(pos, 80))
 	end
 end
 
