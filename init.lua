@@ -26,6 +26,18 @@ local function lookup_warp(name)
 	end
 end
 
+local function round_digits(n, digits)
+	digits = digits or 0
+
+	local multi = math.pow(10, digits)
+	n = n * multi
+	if n > 0 then
+		return math.floor(n + 0.5) / multi
+	else
+		return math.ceil(n - 0.5) / multi
+	end
+end
+
 local warp = function(player, dest)
 	local warp = lookup_warp(dest)
 	if not warp then
@@ -33,7 +45,8 @@ local warp = function(player, dest)
 		return
 	end
 
-	local pos = {x = warp.x, y = warp.y, z = warp.z}
+	local pos = vector.new(warp)
+	pos.y = pos.y + 0.5
 	player:setpos(pos)
 	-- MT Core FIXME
 	-- get functions don't output proper values for set!
@@ -54,14 +67,15 @@ do_warp_queue = function()
 	for i = table.getn(warps_queue),1,-1 do
 		local e = warps_queue[i]
 		if e.p:getpos() then
-			if e.p:getpos().x == e.pos.x and e.p:getpos().y == e.pos.y and e.p:getpos().z == e.pos.z then
+			if vector.equals(e.p:getpos(), e.pos) then
 				if t > e.t then
 					warp(e.p, e.w)
 					table.remove(warps_queue, i)
 				end
 			else
 				minetest.sound_stop(e.sh)
-				minetest.chat_send_player(e.p:get_player_name(), "You have to stand still for " .. warps_freeze .. " seconds!")
+				minetest.chat_send_player(e.p:get_player_name(),
+						"You have to stand still for " .. warps_freeze .. " seconds!")
 				table.remove(warps_queue, i)
 			end
 		end
@@ -75,7 +89,7 @@ end
 
 local warp_queue_add = function(player, dest)
 	table.insert(warps_queue, {
-		t = minetest.get_us_time() + ( warps_freeze * 1000000 ),
+		t = minetest.get_us_time() + (warps_freeze * 1000000),
 		pos = player:getpos(),
 		p = player,
 		w = dest,
@@ -87,8 +101,7 @@ local warp_queue_add = function(player, dest)
 		minetest.after(1, do_warp_queue)
 	end
 	-- attempt to emerge the target area before the player gets there
-	local warp = lookup_warp(dest)
-	local pos = {x = warp.x, y = warp.y, z = warp.z}
+	local pos = vector.new(lookup_warp(dest))
 	minetest.get_voxel_manip():read_from_map(pos, pos)
 	if not minetest.get_node_or_nil(pos) then
 		minetest.emerge_area(vector.subtract(pos, 80), vector.add(pos, 80))
@@ -104,7 +117,8 @@ local save = function ()
 		return
 	end
 	for i = 1,table.getn(warps) do
-		local s = warps[i].name .. " " .. warps[i].x .. " " .. warps[i].y .. " " .. warps[i].z .. " " .. warps[i].yaw .. " " .. warps[i].pitch .. "\n"
+		local s = warps[i].name .. " " .. warps[i].x .. " " .. warps[i].y .. " " ..
+				warps[i].z .. " " .. warps[i].yaw .. " " .. warps[i].pitch .. "\n"
 		fh:write(s)
 	end
 	fh:close()
@@ -154,19 +168,33 @@ minetest.register_chatcommand("setwarp", {
 	privs = { warp_admin = true },
 	func = function(name, param)
 		param = param:gsub("%W", "")
-		local h = "created"
+		if param == "" then
+			return false, "Cannot set warp: Name missing."
+		end
+
+		local h = "Created"
 		for i = 1,table.getn(warps) do
 			if warps[i].name == param then
 				table.remove(warps, i)
-				h = "changed"
+				h = "Changed"
 				break
 			end
 		end
+
 		local player = minetest.get_player_by_name(name)
-		local pos = player:getpos()
-		table.insert(warps, { name = param, x = pos.x, y = pos.y, z = pos.z, yaw = player:get_look_yaw(), pitch = player:get_look_pitch() })
+		local pos = vector.round(player:getpos())
+		table.insert(warps, {
+			name = param,
+			x = pos.x,
+			y = pos.y,
+			z = pos.z,
+			yaw = round_digits(player:get_look_yaw(), 3),
+			pitch = round_digits(player:get_look_pitch(), 3)
+		})
 		save()
-		minetest.log("action", name .. " " .. h .. " warp \"" .. param .. "\": " .. pos.x .. ", " .. pos.y .. ", " .. pos.z)
+
+		minetest.log("action", name .. " " .. h .. " warp \"" .. param .. "\": " ..
+				pos.x .. ", " .. pos.y .. ", " .. pos.z)
 		return true, h .. " warp \"" .. param .. "\""
 	end,
 })
@@ -251,15 +279,18 @@ minetest.register_node("warps:warpstone", {
 		minetest.log("action", sender:get_player_name() .. " changed warp stone to \"" .. fields.destination .. "\"")
 	end,
 	on_punch = function(pos, node, puncher, pointed_thingo)
-		if puncher:get_player_control().sneak and minetest.check_player_privs(puncher:get_player_name(), {warp_admin = true}) then
+		if puncher:get_player_control().sneak and
+				minetest.check_player_privs(puncher:get_player_name(), {warp_admin = true}) then
 			minetest.remove_node(pos)
 			minetest.chat_send_player(puncher:get_player_name(), "Warp stone removed!")
 			return
 		end
+
 		local meta = minetest.get_meta(pos)
 		local destination = meta:get_string("warps_destination")
 		if destination == "" then
-			minetest.chat_send_player(puncher:get_player_name(), "Unknown warp location for this warp stone, cannot warp!")
+			minetest.chat_send_player(puncher:get_player_name(),
+					"Unknown warp location for this warp stone, cannot warp!")
 			return false
 		end
 		warp_queue_add(puncher, destination)
