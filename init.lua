@@ -17,13 +17,63 @@ local warps_freeze = 5
 -- t = time in usec
 -- p = player obj
 -- w = warp name
+local players = {}
 
-local function lookup_warp(name)
+local get_player_warps = function(player)
+	if not player then
+		return false
+	end
+	local t = {}
+	local att = player:get_attribute("warps")
+	if not att then
+		player:set_attribute("warps", minetest.serialize(t))
+	else
+		t = minetest.deserialize(att)
+	end
+	return t
+end
+
+local show_warp_ui = function(player)
+	players[player:get_player_name()].warp_index = 1
+	local s_string = ""
+	local o = {}
+	for k, v in pairs(get_player_warps(player)) do
+		if not v["name"] then
+			minetest.log("error",
+					"[warps] Faulty warps in player data.")
+			return player:set_attribute("warps", nil),
+					minetest.chat_send_player(player, "Faulty warps in player data.")
+		end
+		o[#o + 1] = v
+		s_string = s_string .. v["name"] .. ","
+	end
+	player:set_attribute("warps", minetest.serialize(o))
+	minetest.show_formspec(player:get_player_name(), "warps:warpstone", --TODO
+			"size[7,5]" ..
+			default.gui_bg_img ..
+			"label[-0.11,-0.12;Manage Warps]" ..
+			"field[0.15,0.58;4.86,1;new;;]" ..
+			"button[4.69,0.25;1.2,1;save;Save]" ..
+			"button[5.85,0.25;1.2,1;delete;Delete]" ..
+			"table[-0.15,1.15;7,4;warp_idx;" ..
+					s_string:sub(1, -2) .. ";1]" ..
+			""
+	)
+end
+
+local function lookup_warp(name, player)
 	for i = 1,table.getn(warps) do
 		if warps[i].name == name then
 			return warps[i]
 		end
 	end
+	local player_warps = get_player_warps(player)
+	for i=1, #player_warps do
+		if player_warps[i].name == name then
+			return player_warps[i]
+		end
+	end
+
 end
 
 local function round_digits(n, digits)
@@ -39,7 +89,7 @@ local function round_digits(n, digits)
 end
 
 local warp = function(player, dest)
-	local warp = lookup_warp(dest)
+	local warp = lookup_warp(dest, player)
 	if not warp then
 		minetest.chat_send_player(player:get_player_name(), "Unknown warp \"" .. dest .. "\"")
 		return
@@ -101,7 +151,7 @@ local warp_queue_add = function(player, dest)
 		minetest.after(1, do_warp_queue)
 	end
 	-- attempt to emerge the target area before the player gets there
-	local pos = vector.new(lookup_warp(dest))
+	local pos = vector.new(lookup_warp(dest, player))
 	minetest.get_voxel_manip():read_from_map(pos, pos)
 	if not minetest.get_node_or_nil(pos) then
 		minetest.emerge_area(vector.subtract(pos, 80), vector.add(pos, 80))
@@ -149,6 +199,15 @@ local load = function ()
 	fh:close()
 	minetest.log("action", "[warps] loaded " .. table.getn(warps) .. " warp location(s)")
 end
+
+minetest.register_on_joinplayer(function(player)
+	players[player:get_player_name()] = {
+		warp_index = 1,
+	}
+end)
+minetest.register_on_leaveplayer(function(player)
+	players[player:get_player_name()] = nil
+end)
 
 minetest.register_privilege("warp_admin", {
 	description = "Allows modification of warp points",
@@ -242,6 +301,56 @@ minetest.register_chatcommand("warp", {
 	end
 })
 
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+	if not player then
+		return
+	end
+	if formname ~= "warps:warpstone" then
+		return
+	end
+	local idx, type, index, cell = nil, "", 1, 0
+	local t = get_player_warps(player)
+	local name = player:get_player_name()
+	if fields.warp_idx then
+		idx = fields.warp_idx
+		type = idx:sub(1, 3)
+		index = idx:sub(5, 5)
+		cell = idx:sub(7, 7)
+		players[name].warp_index = index
+	elseif fields.save then
+		local new = fields.new
+		if not new then
+			minetest.chat_send_player(player, "Cannot set warp: Name missing.")
+		elseif new == "" then
+			minetest.chat_send_player(player, "Cannot set warp: Name missing.")
+		else
+			for i = 1, #get_player_warps(player) do
+				if get_player_warps(player)[i].name == new then
+					-- TODO Make it simply change the warp to new location?
+					return minetest.chat_send_player(player, "Pick a new name.")
+				end
+			end
+			new = new:gsub("%W", "")
+			local pos = vector.round(player:getpos())
+			t[#t + 1] = {
+				name = new,
+				x = pos.x,
+				y = pos.y,
+				z = pos.z,
+				yaw = round_digits(player:get_look_horizontal(), 3),
+				pitch = round_digits(player:get_look_vertical(), 3)
+			}
+		end
+		player:set_attribute("warps", minetest.serialize(t))
+		show_warp_ui(player)
+	elseif fields.delete then
+		idx = tonumber(players[name].warp_index)
+		t[idx] = nil
+		player:set_attribute("warps", minetest.serialize(t))
+		show_warp_ui(player)
+	end
+end)
+
 minetest.register_node("warps:warpstone", {
 	visual = "mesh",
 	mesh = "warps_warpstone.obj",
@@ -262,6 +371,9 @@ minetest.register_node("warps:warpstone", {
 		meta:set_string("formspec",
 			"field[destination;Warp Destination;]")
 		meta:set_string("infotext", "Uninitialized Warp Stone")
+	end,
+	on_use = function(itemstack, user, pointed_thing)
+		show_warp_ui(user)
 	end,
 	on_receive_fields = function(pos, formname, fields, sender)
 		if not minetest.check_player_privs(sender:get_player_name(), {warp_admin = true}) then
