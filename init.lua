@@ -48,11 +48,8 @@ local warp = function(player, dest)
 	local pos = vector.new(warp)
 	pos.y = pos.y + 0.5
 	player:setpos(pos)
-	-- MT Core FIXME
-	-- get functions don't output proper values for set!
-	-- https://github.com/minetest/minetest/issues/2658
-	player:set_look_yaw(warp.yaw - (math.pi/2))
-	player:set_look_pitch(0 - warp.pitch)
+	player:set_look_horizontal(warp.yaw)
+	player:set_look_vertical(warp.pitch)
 	minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
 	minetest.log("action", player:get_player_name() .. " warped to \"" .. dest .. "\"")
 	minetest.sound_play("warps_plop", {pos = pos})
@@ -188,8 +185,8 @@ minetest.register_chatcommand("setwarp", {
 			x = pos.x,
 			y = pos.y,
 			z = pos.z,
-			yaw = round_digits(player:get_look_yaw(), 3),
-			pitch = round_digits(player:get_look_pitch(), 3)
+			yaw = round_digits(player:get_look_horizontal(), 3),
+			pitch = round_digits(player:get_look_vertical(), 3)
 		})
 		save()
 
