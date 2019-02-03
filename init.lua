@@ -248,6 +248,7 @@ minetest.register_node("warps:warpstone", {
 	paramtype = "light",
 	groups = { choppy=3 },
 	light_source = 8,
+	diggable = false,
 	selection_box = {
 		type = "fixed",
 		fixed = {-0.25, -0.5, -0.25,  0.25, 0.5, 0.25}
