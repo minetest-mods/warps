@@ -18,6 +18,42 @@ local warps_freeze = 5
 -- p = player obj
 -- w = warp name
 
+local S = minetest.get_mod_storage()
+assert(S, "mod_storage is required")
+
+-- import warps or load
+local store = S:get("warps")
+print(dump(store))
+local worldpath = minetest.get_worldpath()
+if store then
+	warps = minetest.deserialize(store)
+else
+	local fh,err = io.open(worldpath .. "/warps.txt", "r")
+	if err then
+		minetest.log("action", "[warps] loaded ")
+		return
+	end
+	while true do
+		local line = fh:read()
+		if line == nil then
+			break
+		end
+		local paramlist = string.split(line, " ")
+		local w = {
+			name = paramlist[1],
+			x = tonumber(paramlist[2]),
+			y = tonumber(paramlist[3]),
+			z = tonumber(paramlist[4]),
+			yaw = tonumber(paramlist[5]),
+			pitch = tonumber(paramlist[6])
+		}
+		table.insert(warps, w)
+	end
+	fh:close()
+	minetest.log("action", "[warps] converted warps to mod_storage. Please delete 'warps.txt'.")
+	S:set_string("warps", minetest.serialize(warps))
+end
+
 local function lookup_warp(name)
 	for i = 1,table.getn(warps) do
 		if warps[i].name == name then
@@ -109,48 +145,6 @@ local warp_queue_add = function(player, dest)
 	end
 end
 
-local worldpath = minetest.get_worldpath()
-
-local save = function ()
-	local fh,err = io.open(worldpath .. "/warps.txt", "w")
-	if err then
-		print("No existing warps to read.")
-		return
-	end
-	for i = 1,table.getn(warps) do
-		local s = warps[i].name .. " " .. warps[i].x .. " " .. warps[i].y .. " " ..
-				warps[i].z .. " " .. warps[i].yaw .. " " .. warps[i].pitch .. "\n"
-		fh:write(s)
-	end
-	fh:close()
-end
-
-local load = function ()
-	local fh,err = io.open(worldpath .. "/warps.txt", "r")
-	if err then
-		minetest.log("action", "[warps] loaded ")
-		return
-	end
-	while true do
-		local line = fh:read()
-		if line == nil then
-			break
-		end
-		local paramlist = string.split(line, " ")
-		local w = {
-			name = paramlist[1],
-			x = tonumber(paramlist[2]),
-			y = tonumber(paramlist[3]),
-			z = tonumber(paramlist[4]),
-			yaw = tonumber(paramlist[5]),
-			pitch = tonumber(paramlist[6])
-		}
-		table.insert(warps, w)
-	end
-	fh:close()
-	minetest.log("action", "[warps] loaded " .. table.getn(warps) .. " warp location(s)")
-end
-
 minetest.register_privilege("warp_admin", {
 	description = "Allows modification of warp points",
 	give_to_singleplayer = true,
@@ -192,7 +186,7 @@ minetest.register_chatcommand("setwarp", {
 			yaw = round_digits(player:get_look_horizontal(), 3),
 			pitch = round_digits(player:get_look_vertical(), 3)
 		})
-		save()
+		S:set_string("warps", minetest.serialize(warps))
 
 		minetest.log("action", name .. " " .. h .. " warp \"" .. param .. "\": " ..
 				pos.x .. ", " .. pos.y .. ", " .. pos.z)
@@ -297,7 +291,4 @@ minetest.register_node("warps:warpstone", {
 		warp_queue_add(puncher, destination)
 	end,
 })
-
--- load existing warps
-load()
 
