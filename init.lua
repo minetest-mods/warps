@@ -103,6 +103,10 @@ local warp_queue_add = function(player, dest)
 	if not minetest.get_node_or_nil(pos) then
 		minetest.emerge_area(vector.subtract(pos, 80), vector.add(pos, 80))
 	end
+	-- force mapblock send to player, if supported
+	if player.send_mapblock then
+		player:send_mapblock(vector.divide(dest, 16))
+	end
 end
 
 local worldpath = minetest.get_worldpath()
