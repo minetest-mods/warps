@@ -23,7 +23,6 @@ assert(S, "mod_storage is required")
 
 -- import warps or load
 local store = S:get("warps")
-print(dump(store))
 local worldpath = minetest.get_worldpath()
 if store then
 	warps = minetest.deserialize(store)
