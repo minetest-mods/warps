@@ -11,7 +11,9 @@
 priv: warp_admin - set/change/delete warps
 priv: warp_user  - list, and use warps
 
-warps are stored in the world folder file "warps.txt".
+warps are stored in mod_storage. If you had an older version that
+uses the `warps.txt` file, it will be converted on load, after
+which the file can be removed.
 
 A warpstone can be given or found in the creative inventory (item
 id: warps:warpstone). This warpstone can be placed on the ground
@@ -22,9 +24,10 @@ warpstone can be removed by shift-punching the warp stone.
 
 All warps are delayed by ~5 seconds. You have to stand still for
 that duration, otherwise the warp will be cancelled. This may avoid
-warp spamming and warping out of combat a bit. There's a bit
-of variation in time due to the timer resolution in minetest
-being rather large.
+warp spamming and warping out of combat a bit. The mod tries
+really hard to make sure that the player finds themselves in a
+loaded area.
+
 
 ========
 
