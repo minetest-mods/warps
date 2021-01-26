@@ -10,9 +10,9 @@ of the license, or (at your option) any later version.
 
 --]]
 
-warps = {}
-warps_queue = {}
-queue_state = 0
+local warps = {}
+local warps_queue = {}
+local queue_state = 0
 local warps_freeze = 5
 -- t = time in usec
 -- p = player obj
@@ -22,14 +22,19 @@ local S = minetest.get_mod_storage()
 assert(S, "mod_storage is required")
 
 -- import warps or load
-local store = S:get("warps")
-local worldpath = minetest.get_worldpath()
-if store then
-	warps = minetest.deserialize(store)
-else
+local function firstload()
+	local store = S:get("warps")
+	local worldpath = minetest.get_worldpath()
+	if store then
+		warps = minetest.deserialize(store)
+		return
+	end
 	local fh,err = io.open(worldpath .. "/warps.txt", "r")
 	if err then
-		minetest.log("action", "[warps] loaded ")
+		-- If it doesn't exist, we've never used this mod before.
+		if not err:find("No such file or directory") then
+			minetest.log("error", "[warps] Error trying to load warps.txt: " .. err)
+		end
 		return
 	end
 	while true do
@@ -140,7 +145,7 @@ local warp_queue_add = function(player, dest)
 	end
 	-- force mapblock send to player, if supported
 	if player.send_mapblock then
-		player:send_mapblock(vector.divide(dest, 16))
+		player:send_mapblock(vector.divide(pos, 16))
 	end
 end
 
@@ -283,12 +288,14 @@ minetest.register_node("warps:warpstone", {
 
 		local meta = minetest.get_meta(pos)
 		local destination = meta:get_string("warps_destination")
-		if destination == "" then
+		if destination == "" or lookup_warp(destination) == nil then
 			minetest.chat_send_player(puncher:get_player_name(),
 					"Unknown warp location for this warp stone, cannot warp!")
 			return false
 		end
+		minetest.log("action", "Going to warp to: "..destination)
 		warp_queue_add(puncher, destination)
 	end,
 })
 
+firstload()
