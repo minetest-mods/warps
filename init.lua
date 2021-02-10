@@ -95,7 +95,7 @@ local warp = function(player, dest)
 	minetest.sound_play("warps_plop", {pos = pos})
 end
 
-do_warp_queue = function()
+local function do_warp_queue()
 	if table.getn(warps_queue) == 0 then
 		queue_state = 0
 		return
@@ -262,12 +262,11 @@ local function prepare_formspec(dest)
 	else
 		custdest = ""
 	end
-	s_formspec = "size[4.5,3]label[0.7,0;Warp destination]"
-	s_formspec = s_formspec .. "field[1,2.2;3,0.2;destination;Future destination;"
-		..minetest.formspec_escape(custdest).."]"
-		.."button_exit[0.7,2.7;3,0.5;proceed;Proceed]"
-		..prepare_dropdown(0.7,0.4,3,1, dest)
-	return s_formspec
+	return "size[4.5,3]label[0.7,0;Warp destination]"
+	.."field[1,2.2;3,0.2;destination;Future destination;"
+	..minetest.formspec_escape(custdest).."]"
+	.."button_exit[0.7,2.7;3,0.5;proceed;Proceed]"
+	..prepare_dropdown(0.7,0.4,3,1, dest)
 end
 
 minetest.register_node("warps:warpstone", {
@@ -308,7 +307,6 @@ minetest.register_node("warps:warpstone", {
 		end
 
 		local meta = minetest.get_meta(pos)
-		local s_formspec, formspec_help
 
 		meta:set_string("formspec", prepare_formspec(dest))
 		meta:set_string("infotext", "Warp stone to " .. dest)
@@ -332,7 +330,7 @@ minetest.register_node("warps:warpstone", {
 			return false
 		end
 		minetest.log("action", string.format("Going to warp player %s to waypoint %s",
-			puncher:get_player_name(), minetest.formspec_escape(destination)
+			puncher:get_player_name(), destination
 		))
 		warp_queue_add(puncher, destination)
 	end,
