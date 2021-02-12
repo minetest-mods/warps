@@ -256,17 +256,15 @@ local function prepare_dropdown(x,y,w,h,curr_dest)
 end
 
 local function prepare_formspec(dest)
-	local custdest
+	local custdest = ""
 	if not lookup_warp(dest) then
 		custdest = dest
-	else
-		custdest = ""
 	end
 	return "size[4.5,3]label[0.7,0;Warp destination]"
-	.."field[1,2.2;3,0.2;destination;Future destination;"
-	..minetest.formspec_escape(custdest).."]"
-	.."button_exit[0.7,2.7;3,0.5;proceed;Proceed]"
-	..prepare_dropdown(0.7,0.4,3,1, dest)
+		.."field[1,2.2;3,0.2;destination;Future destination;"
+		..minetest.formspec_escape(custdest).."]"
+		.."button_exit[0.7,2.7;3,0.5;proceed;Proceed]"
+		..prepare_dropdown(0.7,0.4,3,1, dest)
 end
 
 minetest.register_node("warps:warpstone", {
