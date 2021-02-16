@@ -10,9 +10,9 @@ of the license, or (at your option) any later version.
 
 --]]
 
-warps = {}
-warps_queue = {}
-queue_state = 0
+local warps = {}
+local warps_queue = {}
+local queue_state = 0
 local warps_freeze = 5
 -- t = time in usec
 -- p = player obj
@@ -22,14 +22,19 @@ local S = minetest.get_mod_storage()
 assert(S, "mod_storage is required")
 
 -- import warps or load
-local store = S:get("warps")
-local worldpath = minetest.get_worldpath()
-if store then
-	warps = minetest.deserialize(store)
-else
+local function firstload()
+	local store = S:get("warps")
+	local worldpath = minetest.get_worldpath()
+	if store then
+		warps = minetest.deserialize(store)
+		return
+	end
 	local fh,err = io.open(worldpath .. "/warps.txt", "r")
 	if err then
-		minetest.log("action", "[warps] loaded ")
+		-- If it doesn't exist, we've never used this mod before.
+		if not err:find("No such file or directory") then
+			minetest.log("error", "[warps] Error trying to load warps.txt: " .. err)
+		end
 		return
 	end
 	while true do
@@ -90,7 +95,7 @@ local warp = function(player, dest)
 	minetest.sound_play("warps_plop", {pos = pos})
 end
 
-do_warp_queue = function()
+local function do_warp_queue()
 	if table.getn(warps_queue) == 0 then
 		queue_state = 0
 		return
@@ -140,7 +145,7 @@ local warp_queue_add = function(player, dest)
 	end
 	-- force mapblock send to player, if supported
 	if player.send_mapblock then
-		player:send_mapblock(vector.divide(dest, 16))
+		player:send_mapblock(vector.divide(pos, 16))
 	end
 end
 
@@ -236,6 +241,32 @@ minetest.register_chatcommand("warp", {
 	end
 })
 
+local function prepare_dropdown(x,y,w,h,curr_dest)
+	local dd = string.format("dropdown[%f,%f;%f,%f;ddwarp;", x, y, w, h)
+	local sel = 0
+	for idx, warp in ipairs(warps) do
+		local warpname = warp.name
+		dd = dd .. minetest.formspec_escape(warpname) .. ","
+		if curr_dest == warpname then
+			sel = idx
+		end
+	end
+	dd = dd .. ";"..tostring(sel).."]"
+	return dd
+end
+
+local function prepare_formspec(dest)
+	local custdest = ""
+	if not lookup_warp(dest) then
+		custdest = dest
+	end
+	return "size[4.5,3]label[0.7,0;Warp destination]"
+		.."field[1,2.2;3,0.2;destination;Future destination;"
+		..minetest.formspec_escape(custdest).."]"
+		.."button_exit[0.7,2.7;3,0.5;proceed;Proceed]"
+		..prepare_dropdown(0.7,0.4,3,1, dest)
+end
+
 minetest.register_node("warps:warpstone", {
 	visual = "mesh",
 	mesh = "warps_warpstone.obj",
@@ -254,8 +285,7 @@ minetest.register_node("warps:warpstone", {
 	},
 	on_construct = function(pos)
 		local meta = minetest.get_meta(pos)
-		meta:set_string("formspec",
-			"field[destination;Warp Destination;]")
+		meta:set_string("formspec", prepare_formspec(""))
 		meta:set_string("infotext", "Uninitialized Warp Stone")
 	end,
 	on_receive_fields = function(pos, formname, fields, sender)
@@ -263,15 +293,24 @@ minetest.register_node("warps:warpstone", {
 			minetest.chat_send_player(sender:get_player_name(), "You do not have permission to modify warp stones")
 			return false
 		end
-		if not fields.destination then
+		if not (fields.destination and fields.quit) then
 			return
 		end
+
+		local dest
+		if fields.destination == "" and fields.ddwarp then
+			dest = fields.ddwarp
+		else
+			dest = fields.destination
+		end
+
 		local meta = minetest.get_meta(pos)
-		meta:set_string("formspec",
-			"field[destination;Warp Destination;" .. fields.destination .. "]")
-		meta:set_string("infotext", "Warp stone to " .. fields.destination)
-		meta:set_string("warps_destination", fields.destination)
-		minetest.log("action", sender:get_player_name() .. " changed warp stone to \"" .. fields.destination .. "\"")
+
+		meta:set_string("formspec", prepare_formspec(dest))
+		meta:set_string("infotext", "Warp stone to " .. dest)
+		meta:set_string("warps_destination", dest)
+		minetest.log("action", sender:get_player_name() .. " changed warp stone at "
+			.. minetest.pos_to_string(pos) .. " to \"" .. dest .. "\"")
 	end,
 	on_punch = function(pos, node, puncher, pointed_thingo)
 		if puncher:get_player_control().sneak and
@@ -283,12 +322,16 @@ minetest.register_node("warps:warpstone", {
 
 		local meta = minetest.get_meta(pos)
 		local destination = meta:get_string("warps_destination")
-		if destination == "" then
+		if destination == "" or lookup_warp(destination) == nil then
 			minetest.chat_send_player(puncher:get_player_name(),
 					"Unknown warp location for this warp stone, cannot warp!")
 			return false
 		end
+		minetest.log("action", string.format("Going to warp player %s to waypoint %s",
+			puncher:get_player_name(), destination
+		))
 		warp_queue_add(puncher, destination)
 	end,
 })
 
+firstload()
