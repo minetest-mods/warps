@@ -87,7 +87,7 @@ local warp = function(player, dest)
 
 	local pos = vector.new(warp)
 	pos.y = pos.y + 0.5
-	player:setpos(pos)
+	player:set_pos(pos)
 	player:set_look_horizontal(warp.yaw)
 	player:set_look_vertical(warp.pitch)
 	minetest.chat_send_player(player:get_player_name(), "Warped to \"" .. dest .. "\"")
@@ -103,8 +103,8 @@ local function do_warp_queue()
 	local t = minetest.get_us_time()
 	for i = table.getn(warps_queue),1,-1 do
 		local e = warps_queue[i]
-		if e.p:getpos() then
-			if vector.equals(e.p:getpos(), e.pos) then
+		if e.p:get_pos() then
+			if vector.equals(e.p:get_pos(), e.pos) then
 				if t > e.t then
 					warp(e.p, e.w)
 					table.remove(warps_queue, i)
@@ -127,10 +127,10 @@ end
 local warp_queue_add = function(player, dest)
 	table.insert(warps_queue, {
 		t = minetest.get_us_time() + (warps_freeze * 1000000),
-		pos = player:getpos(),
+		pos = player:get_pos(),
 		p = player,
 		w = dest,
-		sh = minetest.sound_play("warps_woosh", { pos = player:getpos() })
+		sh = minetest.sound_play("warps_woosh", { pos = player:get_pos() })
 	})
 	minetest.chat_send_player(player:get_player_name(), "Don't move for " .. warps_freeze .. " seconds!")
 	if queue_state == 0 then
@@ -181,7 +181,7 @@ minetest.register_chatcommand("setwarp", {
 		end
 
 		local player = minetest.get_player_by_name(name)
-		local pos = vector.round(player:getpos())
+		local pos = vector.round(player:get_pos())
 		table.insert(warps, {
 			name = param,
 			x = pos.x,
