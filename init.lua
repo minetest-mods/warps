@@ -332,6 +332,11 @@ minetest.register_node("warps:warpstone", {
 		))
 		warp_queue_add(puncher, destination)
 	end,
+	on_place = function(itemstack, placer, pointed_thing)
+		if placer and minetest.check_player_privs(placer, "warp_admin") then
+			return minetest.item_place(itemstack, placer, pointed_thing)
+		end
+	end,
 })
 
 firstload()
